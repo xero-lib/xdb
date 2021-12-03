@@ -2,6 +2,7 @@ use regex::Regex;
 use std::{fs::File, os::unix::prelude::FileExt};
 
 fn main() {
+    let args = std::env::args().skip(1).map(|pid| pid.parse::<u64>().expect("Please provide only numbers as PIDs")).collect::<Vec<u64>>();
     let num_regex: Regex = Regex::new(r"\d+").unwrap();
 
     let mut procs: Vec<u32> = Vec::new();
@@ -12,13 +13,17 @@ fn main() {
     for dir in std::fs::read_dir("/proc").unwrap() {
         let fname = dir.as_ref().unwrap().file_name();
         match num_regex.captures(fname.to_str().unwrap()) {
-            Some(_) => procs.push(fname.to_str().unwrap().parse::<u32>().unwrap()),
+            Some(_) => {
+                if args.contains(&fname.to_string_lossy().parse::<u64>().unwrap()) {
+                    procs.push(fname.to_str().unwrap().parse::<u32>().unwrap())
+                }
+            },
             None => (),
         }
     }
 
     for proc in procs.iter() {
-        mems.push(match File::open(format!("/proc/{}/mem", &proc)) {
+        mems.push(match File::open(format!("/proc/{}/mem", proc)) {
             Ok(file) => file,
             Err(_) => {
                 println!("Could not open mem files. Please run as root.");
@@ -26,7 +31,7 @@ fn main() {
             }
         });
 
-        maps.push(std::fs::read_to_string(format!("/proc/{}/maps", &proc)).unwrap());
+        maps.push(std::fs::read_to_string(format!("/proc/{}/maps", proc)).unwrap());
         names.push(
             std::fs::read_to_string(format!("/proc/{}/comm", proc))
                 .expect("Couldn't read comm file")
@@ -35,34 +40,33 @@ fn main() {
         );
     }
 
-    for (loc, _id) in procs.iter().enumerate() {
+    for (loc, id) in procs.iter().enumerate() {
+        println!("\nProcess {}", id);
         for line in maps[loc].split('\n').map(ToString::to_string) {
             let data = &line
                 .split_whitespace()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>();
-            if data.len() < 2 {
-                continue;
-            };
+            if data.len() < 2 { continue };
+
             let [range, perms] = [&data[0], &data[1]];
-            if perms.chars().collect::<Vec<char>>()[0] != 'r' {
-                continue;
-            };
+            if perms.chars().collect::<Vec<char>>()[0] != 'r' { continue };
+
             let m_ranges = &range
                 .split('-')
                 .map(ToString::to_string)
                 .collect::<Vec<_>>();
-            if m_ranges.len() < 2 {
-                continue;
-            };
+            if m_ranges.len() < 2 { continue };
+
             let [start, end] = [
                 u64::from_str_radix(&m_ranges[0], 16).unwrap(),
                 u64::from_str_radix(&m_ranges[1], 16).unwrap(),
             ];
-            let mut byte_dump: [u8; 1] = [0];
+            
             let mut full_dump = Vec::<u8>::new();
             full_dump.reserve((end - start) as usize);
-
+            
+            let mut byte_dump: [u8; 1] = [0];
             for index in 0..(end - start) {
                 let _ = mems[loc].read_exact_at(&mut byte_dump, start + index);
                 full_dump.push(*byte_dump.first().unwrap());
@@ -77,4 +81,5 @@ fn main() {
             print!("{}", out);
         }
     }
+    println!();
 }

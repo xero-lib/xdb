@@ -12,6 +12,7 @@ cargo build --release
 cp target/release/xdb .
 ```
 The `xdb` binray should be in your working directory.
+
 ---
 ### Usage
 `xdb` requires root privileges to run properly.

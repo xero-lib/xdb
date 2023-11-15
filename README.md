@@ -9,10 +9,14 @@ Navigate to desired target directory and run:
 git clone https://github.com/xero-lib/xdb
 cd xdb
 cargo build --release
-cp target/release/xdb .
 ```
-The `xdb` binray should be in your working directory.
+The `xdb` binray should be located at `./target/release/xdb`.
 
+---
+To install xdb to path, while in the xdb directory, run:
+```sh
+cargo install --path .
+```
 ---
 ### Usage
 `xdb` requires root privileges to run properly.
